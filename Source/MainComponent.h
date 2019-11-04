@@ -78,8 +78,12 @@ class MainComponent   : public AudioAppComponent, public Timer
 		//==============================================================================
 		void paint (Graphics& g) override;
 		void resized() override;
-		void createWavetable();
+		void createSinWavetable();
+		void createSawWavetable();
+		void createSquareWavetable();
+		void createTriWavetable();
 		void createWavetableHarmonics();
+		double poly_blep(double t, double mPhaseIncrement);
 
 	private:
 		//==============================================================================
@@ -90,7 +94,7 @@ class MainComponent   : public AudioAppComponent, public Timer
 		OwnedArray<WavetableOscillator> tabOscillators;
 
 		//wavetable variables
-		AudioSampleBuffer sineTable;
+		AudioSampleBuffer oscTable;
 		const unsigned int tableSize = 1 << 7; //resolution of 128
 	
 		//CPU monitoring

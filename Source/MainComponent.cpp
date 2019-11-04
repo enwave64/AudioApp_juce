@@ -14,7 +14,7 @@
 bool useWaveTable = 1;
 
 // First we define a large number of oscillators to evaluate the CPU load of such a number.
-auto numberOfOscillators = 20; 
+auto numberOfOscillators = 1; 
 //==============================================================================
 MainComponent::MainComponent()
 {
@@ -27,9 +27,11 @@ MainComponent::MainComponent()
 	addAndMakeVisible(cpuUsageLabel);
 	addAndMakeVisible(cpuUsageText);
 
-	//create the sinusoid wavetable
-	//createWavetable();
-	createWavetableHarmonics();
+	//create the wavetable
+	//createSinWavetable();
+	//createWavetableHarmonics();
+	//createSawWavetable();
+	createSquareWavetable();
 
     // Some platforms require permissions to open input channels so request that here
     if (RuntimePermissions::isRequired (RuntimePermissions::recordAudio)
@@ -77,6 +79,7 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
 		// ergo, lowest note 48 (C3), highest note 84 (C6)
 		auto midiNote = Random::getSystemRandom().nextDouble() * 36.0 + 48.0;
 		//auto midiNote = 48 + i * 6;
+		midiNote = 60.0;
 
 		//In order to calculate the frequency of that midi note, we use a simple mathematical formula to retrieve the scalar 
 		//to multiply the frequency of A440 with.
@@ -87,7 +90,7 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
 		if (useWaveTable) 
 		{
 			//WavetableOsc implementation
-			auto* oscillator = new WavetableOscillator(sineTable);
+			auto* oscillator = new WavetableOscillator(oscTable);
 
 			//Then, we set the frequency of the oscillator by passing the frequency and sample rate as 
 			//arguments to the setFrequency() function. We also add the oscillator to the array of oscillators.
@@ -187,15 +190,69 @@ void MainComponent::resized()
 
   ==============================================================================
 */
+void MainComponent::createSawWavetable() 
+{
+	//In this function, initialise the AudioSampleBuffer by calling the setSize() method by specifying that we only need one channel 
+	//and the number of samples equal to the table size, in our case a resolution of 128. 
+	//Then retrieve the write pointer for that single channel buffer.
+	oscTable.setSize(1, tableSize + 1);
+	auto* samples = oscTable.getWritePointer(0);
 
-void MainComponent::createWavetable()
+	auto delta = 2.0f / (double)(tableSize - 1);
+	auto angleDelta = MathConstants<double>::twoPi / (double)(tableSize - 1);
+	double t = angleDelta / MathConstants<double>::twoPi;
+
+	auto increment = -1.0;
+
+	for (auto i = 0; i < tableSize; ++i) 
+	{
+		auto sample = increment;
+		sample -= poly_blep(t, angleDelta);
+		samples[i] = (float)sample;
+		increment += delta;
+	}
+
+	samples[tableSize] = samples[0];
+}
+
+void MainComponent::createSquareWavetable() 
+{
+	//In this function, initialise the AudioSampleBuffer by calling the setSize() method by specifying that we only need one channel 
+	//and the number of samples equal to the table size, in our case a resolution of 128. 
+	//Then retrieve the write pointer for that single channel buffer.
+	oscTable.setSize(1, tableSize + 1);
+	auto* samples = oscTable.getWritePointer(0);
+
+	auto angleDelta = MathConstants<double>::twoPi / (double)(tableSize - 1);
+	double t = angleDelta / MathConstants<double>::twoPi;
+
+	auto sample = 0.0;
+	for (auto i = 0; i < tableSize; ++i)
+	{
+		if (i < tableSize / 2)
+			sample = -1.0;
+		else
+			sample = 1.0;
+
+		sample += poly_blep(t, angleDelta); // Layer output of Poly BLEP on top (flip)
+		sample -= poly_blep(fmod(t + 0.5, 1.0), angleDelta); // Layer output of Poly BLEP on top (flop)
+
+		samples[i] = (float)sample;
+
+	}
+	samples[tableSize] = samples[0];
+}
+
+
+
+void MainComponent::createSinWavetable()
 {
 
 	//In this function, initialise the AudioSampleBuffer by calling the setSize() method by specifying that we only need one channel 
 	//and the number of samples equal to the table size, in our case a resolution of 128. 
 	//Then retrieve the write pointer for that single channel buffer.
-	sineTable.setSize(1, tableSize + 1);
-	auto* samples = sineTable.getWritePointer(0);
+	oscTable.setSize(1, tableSize + 1);
+	auto* samples = oscTable.getWritePointer(0);
 
 	//Next, calculate the angle delta similarly to the SineOscillator, but this time using the table size and thus dividing the full 2pi cycle by 127.
 	auto angleDelta = MathConstants<double>::twoPi / (double)(tableSize - 1);
@@ -209,14 +266,14 @@ void MainComponent::createWavetable()
 		currentAngle += angleDelta;
 	}
 
-	samples[tableSize] = samples[0];
+	samples[tableSize] = samples[0]; //the last sample is the same as the first
 }
 
 void MainComponent::createWavetableHarmonics()
 {
-	sineTable.setSize(1, tableSize + 1);
-	sineTable.clear();
-	auto* samples = sineTable.getWritePointer(0);
+	oscTable.setSize(1, tableSize + 1);
+	oscTable.clear();
+	auto* samples = oscTable.getWritePointer(0);
 	int harmonics[] = { 1, 3, 5, 6, 7, 9, 13, 15 };
 	//int harmonics[] = { 1, 2, 4, 6, 8, 10, 12, 14 };
 	float harmonicWeights[] = { 0.5f, 0.1f, 0.05f, 0.125f, 0.09f, 0.005, 0.002f, 0.001f }; // [1]
@@ -305,3 +362,33 @@ forcedinline void SineOscillator::updateAngle() noexcept {
 		currentAngle -= MathConstants<float>::twoPi;
 }
 
+
+// This function calculates the PolyBLEPs
+//Bleps are a mechanism for reducting aliasing on complex waveforms like saw, square, tri, etc
+//http://metafunction.co.uk/all-about-digital-oscillators-part-2-blits-bleps/
+double MainComponent::poly_blep(double t, double mPhaseIncrement)
+{
+	double dt = mPhaseIncrement / MathConstants<double>::twoPi;
+
+	// t-t^2/2 +1/2
+	// 0 < t <= 1
+	// discontinuities between 0 & 1
+	if (t < dt)
+	{
+		t /= dt;
+		return t + t - t * t - 1.0;
+	}
+
+	// t^2/2 +t +1/2
+	// -1 <= t <= 0
+	// discontinuities between -1 & 0
+	else if (t > 1.0 - dt)
+	{
+		t = (t - 1.0) / dt;
+		return t * t + t + t + 1.0;
+	}
+
+	// no discontinuities 
+	// 0 otherwise
+	else return 0.0;
+}
