@@ -260,15 +260,12 @@ void MainComponent::createNoiseWavetable()
 
 	for (auto i = 0; i < tableSize; ++i)
 	{
-		auto sample = Random::getSystemRandom().nextDouble();
+		//sample values between -1.0 and 1.0
+		auto sample = Random::getSystemRandom().nextDouble() * 2.0f - 1.0f;
 		samples[i] = (float)sample;
-
-
 	}
-
 	samples[tableSize] = samples[0];
 }
-
 
 
 void MainComponent::createTriWavetable() 
@@ -381,14 +378,21 @@ void MainComponent::createWavetableHarmonics()
 	oscTable.setSize(1, tableSize + 1);
 	oscTable.clear();
 	auto* samples = oscTable.getWritePointer(0);
-	int harmonics[] = { 1, 3, 5, 6, 7, 9, 13, 15 };
+	//int harmonics[] = { 1, 3, 5, 6, 7, 9, 13, 15 };
 	//int harmonics[] = { 1, 2, 4, 6, 8, 10, 12, 14 };
-	float harmonicWeights[] = { 0.5f, 0.1f, 0.05f, 0.125f, 0.09f, 0.005, 0.002f, 0.001f }; // [1]
+	//float harmonicWeights[] = { 0.5f, 0.1f, 0.05f, 0.125f, 0.09f, 0.005, 0.002f, 0.001f }; // [1]
+
+	//additive SAW with 8 harmonics
+	int harmonics[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+	float harmonicWeights[] = {1.0f, 0.5f, 0.33333333f, 0.25f, 0.2f, 0.16666666f, 0.142857142f, 0.125f }; // [1]
+
 	jassert(numElementsInArray(harmonics) == numElementsInArray(harmonicWeights));
 	for (auto harmonic = 0; harmonic < numElementsInArray(harmonics); ++harmonic)
 	{
 		auto angleDelta = MathConstants<double>::twoPi / (double)(tableSize - 1) * harmonics[harmonic]; // [2]
-		auto currentAngle = 0.0;
+		//auto currentAngle = 0.0;
+		//attempting 180 degree phase shift here for upward SAW ramp instead of downward
+		auto currentAngle = MathConstants<double>::pi;
 		for (auto i = 0; i < tableSize; ++i)
 		{
 			auto sample = std::sin(currentAngle);
