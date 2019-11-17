@@ -27,11 +27,68 @@ MainComponent::MainComponent()
 	addAndMakeVisible(cpuUsageLabel);
 	addAndMakeVisible(cpuUsageText);
 
+	addAndMakeVisible(freqSlider);
+	freqSlider.setRange(25.0, 85.0);
+
+	freqSlider.onValueChange = [this]
+	{
+		auto midiNote = freqSlider.getValue();
+
+		//In order to calculate the frequency of that midi note, we use a simple mathematical formula to retrieve the scalar 
+		//to multiply the frequency of A440 with.
+		//Since we know that the midi note number of A440 is 69, by subtracting the midi note by 69 we get the 
+		//semitone distance from A440 that we can then plug into the following formula: 440 * 2 ^ (d / 12)
+		auto frequency = 440.0 * pow(2.0, (midiNote - 69.0) / 12.0);
+
+		for (int i = 0; i < tabOscillators.size(); i++) 
+		{
+			auto* oscillator = tabOscillators.getUnchecked(i);
+			oscillator->setFrequency(frequency, currentSampleRate);
+		}
+	};
+
+	addAndMakeVisible(waveSelect);
+	waveSelect.addItem("SINE", 1);
+	waveSelect.addItem("TRI", 2);
+	waveSelect.addItem("HARMONICS", 3);
+	waveSelect.addItem("SAW", 4);
+	waveSelect.addItem("SQUARE", 5);
+	waveSelect.addItem("NOISE", 6);
+	waveSelect.setSelectedId(1);
+
+	waveSelect.onChange = [this]
+	{
+		switch(waveSelect.getSelectedId())
+		{
+			case(1):
+				createSinWavetable();
+				break;
+			case(2):
+				createTriWavetable();
+				break;
+			case(3):
+				createWavetableHarmonics();				
+				break;
+			case(4):
+				createSawWavetable();				
+				break;
+			case(5):
+				createSquareWavetable();
+				break;
+			case(6):
+				createNoiseWavetable();
+				break;
+			default:
+				break;
+		}
+	};
+
 	//create the wavetable
-	//createSinWavetable();
+	createSinWavetable();
 	//createWavetableHarmonics();
 	//createSawWavetable();
-	createSquareWavetable();
+	//createSquareWavetable();
+	//createTriWavetable();
 
     // Some platforms require permissions to open input channels so request that here
     if (RuntimePermissions::isRequired (RuntimePermissions::recordAudio)
@@ -69,7 +126,8 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
 
     // You can use this function to initialise any resources you might need,
     // but be careful - it will be called on the audio thread, not the GUI thread.
-		
+	
+	currentSampleRate = sampleRate;
 
 	//we initialise the oscillators and set their frequencies to play based on the sample rate as follows	
 	for (auto i = 0; i < numberOfOscillators; ++i)
@@ -79,7 +137,8 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
 		// ergo, lowest note 48 (C3), highest note 84 (C6)
 		auto midiNote = Random::getSystemRandom().nextDouble() * 36.0 + 48.0;
 		//auto midiNote = 48 + i * 6;
-		midiNote = 60.0;
+		//midiNote = 60.0;
+		midiNote = freqSlider.getValue();
 
 		//In order to calculate the frequency of that midi note, we use a simple mathematical formula to retrieve the scalar 
 		//to multiply the frequency of A440 with.
@@ -179,6 +238,8 @@ void MainComponent::resized()
 {
 	cpuUsageLabel.setBounds(10, 10, getWidth() - 20, 20);
 	cpuUsageText.setBounds(10, 10, getWidth() - 20, 20);
+	waveSelect.setBounds(10, 30, getWidth() - 40, 20);
+	freqSlider.setBounds(10, 70, getWidth() - 20, 20);
 }
 
 
@@ -190,6 +251,52 @@ void MainComponent::resized()
 
   ==============================================================================
 */
+void MainComponent::createNoiseWavetable()
+{
+	oscTable.setSize(1, tableSize + 1);
+	auto* samples = oscTable.getWritePointer(0);
+
+	auto increment = Random::getSystemRandom().nextDouble();
+
+	for (auto i = 0; i < tableSize; ++i)
+	{
+		auto sample = Random::getSystemRandom().nextDouble();
+		samples[i] = (float)sample;
+
+
+	}
+
+	samples[tableSize] = samples[0];
+}
+
+
+
+void MainComponent::createTriWavetable() 
+{
+	oscTable.setSize(1, tableSize + 1);
+	auto* samples = oscTable.getWritePointer(0);
+
+	auto delta = 2.0f / (double)(tableSize - 1);
+	auto angleDelta = MathConstants<double>::twoPi / (double)(tableSize - 1);
+	double t = angleDelta / MathConstants<double>::twoPi;
+
+	auto increment = -1.0;
+
+	for (auto i = 0; i < tableSize; ++i)
+	{
+		auto sample = increment;
+		//sample -= poly_blep(t, angleDelta);
+		samples[i] = (float)sample;
+
+		if (i < tableSize / 2)
+			increment += delta * 2;
+		else
+			increment -= delta * 2;
+	}
+
+	samples[tableSize] = samples[0];
+}
+
 void MainComponent::createSawWavetable() 
 {
 	//In this function, initialise the AudioSampleBuffer by calling the setSize() method by specifying that we only need one channel 

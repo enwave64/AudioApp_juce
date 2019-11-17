@@ -83,11 +83,13 @@ class MainComponent   : public AudioAppComponent, public Timer
 		void createSquareWavetable();
 		void createTriWavetable();
 		void createWavetableHarmonics();
+		void createNoiseWavetable();
 		double poly_blep(double t, double mPhaseIncrement);
 
 	private:
 		//==============================================================================
 		//SinOsc std::sin variables
+		double currentSampleRate = 0.0;
 		float currentAngle = 0.0f, angleDelta = 0.0f;
 		float level = 0.0f;
 		OwnedArray<SineOscillator> oscillators;
@@ -100,5 +102,8 @@ class MainComponent   : public AudioAppComponent, public Timer
 		//CPU monitoring
 		Label cpuUsageLabel;
 		Label cpuUsageText;
+		ComboBox waveSelect;
+		Slider freqSlider;
+
 		JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };
