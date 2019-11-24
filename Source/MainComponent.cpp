@@ -8,11 +8,14 @@
 
 #include "MainComponent.h"
 
+StringSynthesiser *strynth;
+
 //==============================================================================
 MainComponent::MainComponent()
 {
     // Make sure you set the size of the component after
     // you add any child components.
+	createStringComponents();
     setSize (800, 600);
 
     // Some platforms require permissions to open input channels so request that here
@@ -45,6 +48,11 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
     // but be careful - it will be called on the audio thread, not the GUI thread.
 
     // For more details, see the help for AudioProcessor::prepareToPlay()
+
+	//currentSampleRate = sampleRate;
+	//strynth = new StringSynthesiser(sampleRate, 200.0f);
+	generateStringSynths(sampleRate);
+
 }
 
 void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFill)
@@ -53,9 +61,26 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
 
     // For more details, see the help for AudioProcessor::getNextAudioBlock()
 
-    // Right now we are not producing any data, in which case we need to clear the buffer
-    // (to prevent the output of random noise)
-    bufferToFill.clearActiveBufferRegion();
+	bufferToFill.clearActiveBufferRegion();
+
+	for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel)
+	{
+		auto* channelData = bufferToFill.buffer->getWritePointer(channel, bufferToFill.startSample);
+
+		if (channel == 0)
+		{
+
+				//strynth->generateAndAddData(channelData, bufferToFill.numSamples);
+			for (auto synth : stringSynths)
+				synth->generateAndAddData(channelData, bufferToFill.numSamples);
+		}
+		else
+		{
+			memcpy(channelData,
+				bufferToFill.buffer->getReadPointer(0),
+				((size_t)bufferToFill.numSamples) * sizeof(float));
+		}
+	}
 }
 
 void MainComponent::releaseResources()
@@ -64,6 +89,7 @@ void MainComponent::releaseResources()
     // restarted due to a setting change.
 
     // For more details, see the help for AudioProcessor::releaseResources()
+	stringSynths.clear();
 }
 
 //==============================================================================
@@ -80,4 +106,17 @@ void MainComponent::resized()
     // This is called when the MainContentComponent is resized.
     // If you add any child components, this is where you should
     // update their positions.
+
+	auto xPos = 20;
+	auto yPos = 20;
+	auto yDistance = 50;
+
+	for (auto stringLine : stringLines)
+	{
+		stringLine->setTopLeftPosition(xPos, yPos);
+		yPos += yDistance;
+		addAndMakeVisible(stringLine);
+	}
 }
+
+
