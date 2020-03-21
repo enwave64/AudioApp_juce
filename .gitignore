@@ -1,4 +1,5 @@
 *.db
 *.suo
-D:/AudioDevelopment/AudioApp_juce/Builds/VisualStudio2017/.vs/AudioApp_juce/v15/Browse.VC.db
-D:/AudioDevelopment/AudioApp_juce/Builds/VisualStudio2017/.vs
+/Builds
+/JuceLibraryCode
+/.vs
